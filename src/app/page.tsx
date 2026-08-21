@@ -571,7 +571,7 @@ export default function StorePage() {
                     Thank you for your order, <span className="font-bold text-neutral-900">{shippingInfo.name}</span>. We have sent a confirmation email to <span className="font-bold text-neutral-900">{shippingInfo.email}</span>.
                   </p>
                   <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 text-xs text-neutral-600 space-y-1 mb-8 text-left">
-                    <p><span className="font-bold">Order ID:</span> #VT-{Math.floor(100000 + Math.random() * 900000)}</p>
+                    <p><span className="font-bold">Order ID:</span> #VT-784920</p>
                     <p><span className="font-bold">Estimated Delivery:</span> 2-3 Business Days</p>
                     <p><span className="font-bold">Destination:</span> {shippingInfo.address}, {shippingInfo.city}</p>
                   </div>
