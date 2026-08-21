@@ -3,7 +3,6 @@ import json
 import urllib.request
 import subprocess
 import sys
-import time
 
 if os.path.exists(".env"):
     with open(".env", "r", encoding="utf-8") as f:
@@ -46,7 +45,7 @@ def call_gemini(prompt_text):
     schema = {
         "type": "OBJECT",
         "properties": {
-            "reasoning": {"type": "STRING"},
+            "reply": {"type": "STRING"},
             "files": {
                 "type": "ARRAY",
                 "items": {
@@ -59,7 +58,7 @@ def call_gemini(prompt_text):
                 }
             }
         },
-        "required": ["reasoning", "files"]
+        "required": ["reply", "files"]
     }
 
     payload = {
@@ -74,67 +73,76 @@ def call_gemini(prompt_text):
     try:
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode("utf-8"))
-            return result['candidates'][0]['content']['parts'][0]['text']
+            return json.loads(result['candidates'][0]['content']['parts'][0]['text'])
     except Exception as e:
         print(f"🤖 API Error ({model_name}): {e}")
         return None
 
 def main():
-    user_task = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "Review the project, optimize code, and ensure everything is clean and working."
     branch = get_current_branch()
-    
-    print(f"\n🧠 Verve AI Agent Active")
-    print(f"Branch: {branch} | Task: {user_task}\n")
-    
-    print("📂 Gathering project context...")
-    files_dict = get_project_files()
-    files_context = "\n".join([f"--- FILE: {path} ---\n{content}\n" for path, content in files_dict.items()])
+    print(f"\n⚡ Quix 3 Coder Chat Active (Branch: {branch})")
+    print("Type what you want to change or fix. Type 'exit' or 'quit' to leave.\n")
 
-    prompt = f"""
-User Goal / Task: {user_task}
+    while True:
+        try:
+            user_input = input("You: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n👋 Catch you later!")
+            break
+
+        if not user_input:
+            continue
+        if user_input.lower() in ["exit", "quit"]:
+            print("\n👋 Catch you later!")
+            break
+
+        print("📂 Scanning project files...")
+        files_dict = get_project_files()
+        files_context = "\n".join([f"--- FILE: {path} ---\n{content}\n" for path, content in files_dict.items()])
+
+        prompt = f"""
+You are Quix 3 Coder, a chill, expert AI coding companion. Chat with the user and fulfill their coding request.
+User Message: {user_input}
 
 Repository Files:
 {files_context}
 
 Instructions:
-1. Fulfill the user's task by updating or creating the necessary code files.
-2. Return a valid JSON response containing your reasoning and the modified files.
+1. Provide a friendly text response in 'reply'.
+2. If code changes are needed, include them in 'files'. If no files need changing, leave 'files' empty.
 3. DO NOT modify agent.py or vercel.json.
 """
 
-    print("🤖 Agent thinking and generating solution...")
-    raw_response = call_gemini(prompt)
-    
-    if not raw_response:
-        print("❌ Agent failed to receive a response from Gemini.")
-        return
+        print("🧠 Quix 3 Coder is thinking...")
+        response_data = call_gemini(prompt)
 
-    try:
-        data = json.loads(raw_response)
-        print(f"\n💡 Agent Reasoning: {data.get('reasoning')}\n")
-        
-        updated_count = 0
-        for item in data.get("files", []):
-            f_path = item.get("path")
-            f_content = item.get("content")
-            if f_path and f_content and "agent.py" not in f_path:
-                os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
-                with open(f_path, "w", encoding="utf-8") as f:
-                    f.write(f_content)
-                print(f"✏️ Updated: {f_path}")
-                updated_count += 1
-                
-        if updated_count > 0:
-            print("\n🚀 Pushing changes to GitHub...")
-            subprocess.run(["git", "add", "."])
-            subprocess.run(["git", "commit", "-m", f"Agent update: {user_task[:40]}"])
-            subprocess.run(["git", "push", "origin", branch])
-            print("✅ Agent task completed, committed, and pushed successfully!")
-        else:
-            print("⚠️ No files were modified by the agent.")
+        if not response_data:
+            print("❌ Failed to get a response.\n")
+            continue
+
+        print(f"\nQuix: {response_data.get('reply')}\n")
+
+        files_to_update = response_data.get("files", [])
+        if files_to_update:
+            updated_count = 0
+            for item in files_to_update:
+                f_path = item.get("path")
+                f_content = item.get("content")
+                if f_path and f_content and "agent.py" not in f_path:
+                    os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
+                    with open(f_path, "w", encoding="utf-8") as f:
+                        f.write(f_content)
+                    print(f"✏️ Updated: {f_path}")
+                    updated_count += 1
             
-    except Exception as e:
-        print(f"❌ Error processing agent response: {e}")
+            if updated_count > 0:
+                print("\n🚀 Committing and pushing changes to GitHub...")
+                subprocess.run(["git", "add", "."])
+                subprocess.run(["git", "commit", "-m", f"Quix chat update: {user_input[:30]}"])
+                subprocess.run(["git", "push", "origin", branch])
+                print("✅ Pushed successfully!\n")
+        else:
+            print()
 
 if __name__ == "__main__":
     main()
