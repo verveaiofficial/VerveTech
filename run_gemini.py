@@ -11,7 +11,8 @@ if os.path.exists(".env"):
                 os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1].strip('"\'')
 
 api_key = os.environ.get("GEMINI_API_KEY")
-model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+# Locked strictly to 3.x model series as requested
+model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash") 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
 def get_current_branch():
@@ -21,23 +22,20 @@ def get_current_branch():
     except Exception:
         return "main"
 
-def get_project_files():
-    context = ""
+def get_specific_files():
+    files_data = {}
     for root, dirs, files in os.walk("."):
         if any(p in root for p in [".git", "__pycache__", "node_modules", ".next", ".vercel", "build", "dist"]):
             continue
         for file in files:
-            # Protect the agent script itself from being overwritten
-            if file == "run_gemini.py":
-                continue
-            if file.endswith((".py", ".json", ".md", ".txt", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".config.js", ".config.ts")):
+            if file in ["package.json"] or file.endswith((".js", ".ts", ".tsx", ".jsx", ".css")):
                 filepath = os.path.join(root, file)
                 try:
                     with open(filepath, "r", encoding="utf-8") as f:
-                        context += f"\n--- FILE: {filepath} ---\n" + f.read() + "\n"
+                        files_data[filepath] = f.read()
                 except Exception:
                     pass
-    return context
+    return files_data
 
 def call_gemini(prompt_text):
     if not api_key:
@@ -53,7 +51,7 @@ def call_gemini(prompt_text):
             result = json.loads(response.read().decode("utf-8"))
             return result['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        print(f"API Error: {e}")
+        print(f"API Error ({model_name}): {e}")
         return None
 
 def check_vercel_state():
@@ -83,97 +81,79 @@ def main():
         return
         
     branch = get_current_branch()
-    print(f"\n👁️ Full-Repo Autonomous Watchdog Active.")
-    print(f"Branch: {branch} | Model: {model_name}")
-    print("Self-protection enabled. Monitoring builds 24/7...\n")
+    print(f"\n👁️ Code Watchdog Active.")
+    print(f"Branch: {branch} | Model: {model_name}\n")
     
     last_failed_commit = None
 
     while True:
-        try:
-            current_commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-        except:
-            current_commit = "unknown"
-
         state = check_vercel_state()
         
-        if state == "Building":
-            print("⏳ Vercel is building... waiting 15 seconds.")
-            time.sleep(15)
-            
-        elif state == "Error":
+        if state == "Error":
+            try:
+                current_commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+            except:
+                current_commit = "unknown"
+
             if current_commit == last_failed_commit:
-                print("⚠️ Same commit failed again. Waiting 45s...")
-                time.sleep(45)
+                time.sleep(30)
                 continue
                 
-            print("\n💥 BUILD ERROR CAUGHT! Analyzing full repository and logs...")
+            print("\n💥 BUILD ERROR CAUGHT! Analyzing code and logs...")
             logs = get_latest_logs()
+            files_dict = get_specific_files()
             
-            system_instruction = f"""
-You are an autonomous engineering agent. The live Vercel build failed.
-Examine the Vercel error logs and the repository files below (especially package.json if dependencies are missing like 'autoprefixer'). Fix the actual codebase or configuration files to completely resolve the build failure.
-DO NOT modify run_gemini.py.
+            files_context = "\n".join([f"--- FILE: {path} ---\n{content}\n" for path, content in files_dict.items()])
 
-Return ONLY valid JSON matching this schema:
+            prompt = f"""
+You are an expert coder. The build failed with this log:
+{logs}
+
+Repository Files:
+{files_context}
+
+Task: Find the issue in the code or package.json. Fix it by rewriting the file content.
+Rules:
+1. ONLY modify package.json or source code files.
+2. DO NOT modify vercel.json or run_gemini.py.
+3. Return only valid JSON.
+
 {{
-  "reasoning": "Explain the exact root cause and how you are fixing it.",
+  "reasoning": "What caused the error and how you fixed it",
   "files": [
     {{
-      "path": "relative/path/to/file.ext",
-      "content": "complete fixed code"
+      "path": "path/to/file",
+      "content": "Full code content"
     }}
   ]
 }}
 """
-            prompt = f"{system_instruction}\n\nFull Repository Context:\n{get_project_files()}\n\nVERCEL ERROR LOGS:\n{logs}"
-            
-            print("🧠 Analyzing codebase and patching configuration/code...")
             raw_response = call_gemini(prompt)
             
             if raw_response:
                 try:
-                    clean_json = raw_response.strip()
-                    if clean_json.startswith("```json"):
-                        clean_json = clean_json[7:-3]
-                    elif clean_json.startswith("```"):
-                        clean_json = clean_json[3:-3]
-                        
-                    data = json.loads(clean_json.strip())
-                    files_to_update = data.get("files", [])
+                    data = json.loads(raw_response.strip().replace("```json", "").replace("```", ""))
+                    for item in data.get("files", []):
+                        f_path = item.get("path")
+                        f_content = item.get("content")
+                        if f_path and f_content and "vercel.json" not in f_path and f_path != "run_gemini.py":
+                            with open(f_path, "w", encoding="utf-8") as f:
+                                f.write(f_content)
+                            print(f"🩹 Fixed: {f_path}")
                     
-                    if files_to_update:
-                        for item in files_to_update:
-                            f_path = item.get("path")
-                            f_content = item.get("content")
-                            if f_path and f_content and f_path != "run_gemini.py":
-                                os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
-                                with open(f_path, "w", encoding="utf-8") as f:
-                                    f.write(f_content)
-                                print(f"🩹 Patched File: {f_path}")
-                        
-                        subprocess.run(["git", "add", "."])
-                        subprocess.run(["git", "commit", "-m", "Auto-heal: Fix build error from logs"])
-                        subprocess.run(["git", "push", "origin", branch])
-                        print(f"🚀 Pushed fix to '{branch}'.")
-                        
-                        last_failed_commit = current_commit 
-                        time.sleep(25)
-                    else:
-                        print("Agent found no files to update.")
-                        last_failed_commit = current_commit
-                except Exception as e:
-                    print(f"Parse error: {e}")
+                    subprocess.run(["git", "add", "."])
+                    subprocess.run(["git", "commit", "-m", "Auto-fixed build error"])
+                    subprocess.run(["git", "push", "origin", branch])
+                    print(f"🚀 Pushed fix to '{branch}'.")
                     last_failed_commit = current_commit
-            else:
-                time.sleep(15)
-                
-        elif state == "Ready":
-            print("✅ Deployment is Live & Green!")
-            time.sleep(30)
+                except Exception as e:
+                    print(f"Error processing AI response: {e}")
             
-        else:
+        elif state == "Building":
+            print("⏳ Building...")
             time.sleep(20)
+        else:
+            time.sleep(30)
 
 if __name__ == "__main__":
     main()
