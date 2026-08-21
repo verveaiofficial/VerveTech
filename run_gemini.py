@@ -92,11 +92,9 @@ def main():
         return
 
     current_branch = get_current_branch()
-    print(f"\nVibe Coding Agent Active ({model_name}) ✨")
+    print(f"\nVibe Coding Agent + Reasoning Enabled ({model_name}) 🧠✨")
     print(f"Active Branch: {current_branch}\n")
 
-    chat_history = []
-    
     while True:
         user_input = input("Aariz: ").strip()
         if not user_input:
@@ -111,10 +109,14 @@ def main():
 
         system_instruction = f"""
 You are an intelligent full-stack AI vibe-coding agent.
-Analyze the user's message, project files, and agents.md rules.
-You MUST respond with a valid JSON object strictly matching this schema:
+Analyze the user's message, project files, and agents.md rules carefully.
+
+CRITICAL INSTRUCTION: You MUST perform step-by-step reasoning BEFORE generating replies or file edits.
+
+You MUST return a valid JSON object strictly matching this schema:
 {{
-  "reply": "Your conversational response, progress update, or questions for Aariz...",
+  "reasoning": "Step-by-step thought process: Analyze architecture, evaluate dependencies, identify files to edit, anticipate syntax/type errors, and double-check instructions...",
+  "reply": "Your friendly, direct response or update to Aariz...",
   "files": [
     {{
       "path": "relative/path/to/file.ext",
@@ -123,11 +125,11 @@ You MUST respond with a valid JSON object strictly matching this schema:
   ]
 }}
 
-Guidelines:
-- If no files need to be edited or created, return "files": [].
-- You have UNRESTRICTED access to edit any file in the project (including package.json and config files).
-- Write full, working code without truncation or placeholders.
-- Always communicate directly and naturally inside the "reply" field.
+Rules:
+- Fill out the 'reasoning' field FIRST with thorough analysis.
+- If no files need to be edited or created, set 'files': [].
+- Unrestricted access to edit any file in the repo.
+- Write full, production-ready code without placeholders.
 {agents_rules}
 {branch_context}
 """
@@ -136,6 +138,7 @@ Guidelines:
         attempt = 1
 
         while True:
+            print("\nThinking and analyzing codebase... 🧠")
             raw_response = call_gemini([{"parts": [{"text": current_prompt}]}])
             if not raw_response:
                 print("Failed to reach Gemini API.")
@@ -147,11 +150,15 @@ Guidelines:
                 print("Response parse error, retrying...")
                 break
 
+            thought_process = data.get("reasoning", "")
             agent_reply = data.get("reply", "")
             files_to_update = data.get("files", [])
 
+            if thought_process:
+                print(f"\n💭 Reasoning:\n{thought_process}\n")
+
             if agent_reply:
-                print(f"\nAgent: {agent_reply}\n")
+                print(f"Agent: {agent_reply}\n")
 
             if files_to_update:
                 for item in files_to_update:
