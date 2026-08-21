@@ -661,10 +661,10 @@ export default function StorePage() {
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4">Support</h4>
               <ul className="space-y-2 text-sm text-neutral-300">
-                <li><a href="#" onClick={(e) => { e.preventDefault(); showToast("Contact support: support@vervetech.com"); }} className="hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); showToast("Warranty: 2-Year Global Coverage"); }} className="hover:text-white transition-colors">Warranty & Repairs</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); showToast("Shipping info: Free express worldwide delivery"); }} className="hover:text-white transition-colors">Shipping & Returns</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); showToast("FAQ: Check our knowledge base"); }} className="hover:text-white transition-colors">FAQ</a></li>
+                <li><button onClick={() => showToast("Contact support: support@vervetech.com")} className="hover:text-white transition-colors text-left">Contact Us</button></li>
+                <li><button onClick={() => showToast("Warranty: 2-Year Global Coverage")} className="hover:text-white transition-colors text-left">Warranty & Repairs</button></li>
+                <li><button onClick={() => showToast("Shipping info: Free express worldwide delivery")} className="hover:text-white transition-colors text-left">Shipping & Returns</button></li>
+                <li><button onClick={() => showToast("FAQ: Check our knowledge base")} className="hover:text-white transition-colors text-left">FAQ</button></li>
               </ul>
             </div>
             <div>
@@ -689,8 +689,8 @@ export default function StorePage() {
           <div className="pt-8 border-t border-neutral-800 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500">
             <p>© 2025 VerveTech Inc. All rights reserved.</p>
             <div className="flex space-x-6 mt-4 sm:mt-0">
-              <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-neutral-300">Privacy Policy</a>
-              <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-neutral-300">Terms of Service</a>
+              <button onClick={() => showToast("Privacy Policy: We protect your data.")} className="hover:text-neutral-300">Privacy Policy</button>
+              <button onClick={() => showToast("Terms of Service: Standard retail terms apply.")} className="hover:text-neutral-300">Terms of Service</button>
             </div>
           </div>
         </div>
