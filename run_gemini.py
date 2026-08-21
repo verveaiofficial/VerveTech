@@ -50,50 +50,72 @@ def call_gemini(prompt_text):
             result = json.loads(response.read().decode("utf-8"))
             return result['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        print("API Error:", e)
+        print(f"API Error: {e}")
         return None
 
-def check_vercel_build():
-    print("⏳ Waiting for Vercel to process the build (45s)...")
-    time.sleep(45)
-    print("📡 Pulling live Vercel logs...")
+def check_vercel_state():
     try:
-        res = subprocess.run(["npx", "--yes", "vercel", "logs", "--limit", "50"], capture_output=True, text=True, timeout=20)
-        logs = res.stdout + "\n" + res.stderr
+        # 'vercel ls' returns the deployment history. The top entry is the latest status.
+        res = subprocess.run(["npx", "--yes", "vercel", "ls"], capture_output=True, text=True)
+        output = res.stdout + "\n" + res.stderr
         
-        error_keywords = ["Failed to compile", "Type error", "SyntaxError", "Build error", "Command failed"]
-        if any(keyword in logs for keyword in error_keywords):
-            print("❌ Vercel build failed! Initiating auto-heal sequence...")
-            return False, logs[-3000:]
-        
-        print("✅ Vercel deployment looks stable.")
-        return True, ""
-    except Exception as e:
-        print(f"⚠️ Could not pull logs: {e}")
-        return True, ""
+        if "Building" in output or "Queued" in output:
+            return "Building"
+        elif "Error" in output or "Failed" in output:
+            return "Error"
+        elif "Ready" in output:
+            return "Ready"
+        return "Unknown"
+    except Exception:
+        return "Unknown"
 
-def auto_heal_loop():
+def get_latest_logs():
+    try:
+        res = subprocess.run(["npx", "--yes", "vercel", "logs", "--limit", "200"], capture_output=True, text=True)
+        return res.stdout + "\n" + res.stderr
+    except Exception:
+        return ""
+
+def main():
+    if not api_key:
+        print("Missing GEMINI_API_KEY in .env!")
+        return
+        
     branch = get_current_branch()
-    attempt = 1
-    max_attempts = 3
+    print(f"\n👁️ Verve AI Autonomous Watchdog Activated.")
+    print(f"Branch: {branch} | Model: {model_name}")
+    print("Zero-input mode engaged. Monitoring Vercel 24/7 in the background...\n")
     
-    while attempt <= max_attempts:
-        is_stable, error_logs = check_vercel_build()
-        if is_stable:
-            print("🚀 Autonomous deployment successful!")
-            break
-            
-        print(f"🛠️ Auto-Heal Attempt {attempt}/{max_attempts}...")
-        
-        system_instruction = f"""
-You are an autonomous CI/CD agent. The recent Vercel build FAILED.
-Analyze the Vercel error logs below and fix the codebase to resolve the build failure.
-CRITICAL: You MUST return updated file contents in the 'files' array to patch the errors.
+    last_failed_commit = None
 
-Schema:
+    while True:
+        try:
+            current_commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        except:
+            current_commit = "unknown"
+
+        state = check_vercel_state()
+        
+        if state == "Building":
+            print("⏳ Vercel is building... waiting 15 seconds.")
+            time.sleep(15)
+            
+        elif state == "Error":
+            if current_commit == last_failed_commit:
+                print("⚠️ Last auto-patch failed on this exact commit. Waiting 60s for manual intervention to prevent a loop...")
+                time.sleep(60)
+                continue
+                
+            print("\n💥 CRASH DETECTED! Pulling live logs and initiating auto-heal...")
+            logs = get_latest_logs()
+            
+            system_instruction = f"""
+You are an autonomous CI/CD agent for Verve AI Studio. The live Vercel deployment just FAILED.
+Analyze the logs and project files below, then write the exact code to fix the build syntax/type errors.
+
+CRITICAL: Return ONLY valid JSON matching this schema:
 {{
-  "reasoning": "Identify the exact error from the logs and how to fix it...",
-  "reply": "Brief explanation of the automated fix...",
+  "reasoning": "Identify the exact error and plan the fix.",
   "files": [
     {{
       "path": "relative/path/to/file.ext",
@@ -102,104 +124,58 @@ Schema:
   ]
 }}
 """
-        prompt = f"{system_instruction}\n\nCodebase:\n{get_project_files()}\n\nVERCEL ERROR LOGS:\n{error_logs}"
-        
-        raw_response = call_gemini(prompt)
-        if not raw_response:
-            print("Communication error during auto-heal.")
-            break
+            prompt = f"{system_instruction}\n\nCodebase:\n{get_project_files()}\n\nVERCEL LOGS:\n{logs}"
             
-        try:
-            data = json.loads(raw_response.strip())
-            files_to_update = data.get("files", [])
+            print("🧠 Analyzing crash data and writing code patch...")
+            raw_response = call_gemini(prompt)
             
-            if not files_to_update:
-                print("Agent failed to provide a code fix.")
-                break
-                
-            print(f"🤖 Auto-fix generated: {data.get('reply', 'Patching files...')}")
-            
-            for item in files_to_update:
-                f_path = item.get("path")
-                f_content = item.get("content")
-                if f_path and f_content is not None:
-                    os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
-                    with open(f_path, "w", encoding="utf-8") as f:
-                        f.write(f_content)
-                    print(f"Patched: {f_path}")
-            
-            subprocess.run(["git", "add", "."])
-            subprocess.run(["git", "commit", "-m", f"Auto-heal: Vercel build fix attempt {attempt}"])
-            subprocess.run(["git", "push", "origin", branch])
-            print(f"🔄 Pushed auto-fix to '{branch}'. Restarting monitor loop...")
-            attempt += 1
-            
-        except Exception as e:
-            print(f"Auto-heal parse error: {e}")
-            break
-
-def main():
-    if not api_key:
-        print("\nError: Missing GEMINI_API_KEY in .env!")
-        return
-
-    print(f"\n⚡ Autonomous Watchdog Active ({model_name})")
-    print(f"Active Branch: {get_current_branch()}\n")
-
-    while True:
-        user_input = input("Aariz: ").strip()
-        if not user_input:
-            continue
-        if user_input.lower() in ["exit", "quit", "/exit"]:
-            print("Catch you later. ✨")
-            break
-
-        system_instruction = f"""
-You are an expert full-stack AI vibe-coding agent.
-Whenever Aariz asks for a feature or edit, WRITE AND RETURN THE FULL UPDATED CODE FILES.
-Schema:
-{{
-  "reasoning": "Plan...",
-  "reply": "Message...",
-  "files": [{{"path": "file.ext", "content": "code"}}]
-}}
-"""
-        prompt = f"{system_instruction}\n\nCodebase:\n{get_project_files()}\n\nUser Command: {user_input}"
-        
-        print("\nProcessing your command... 🧠⚡")
-        raw_response = call_gemini(prompt)
-        if not raw_response:
-            continue
-            
-        try:
-            data = json.loads(raw_response.strip())
-            files_to_update = data.get("files", [])
-            
-            print(f"Agent: {data.get('reply', 'Done.')}\n")
-            
-            if files_to_update:
-                for item in files_to_update:
-                    f_path = item.get("path")
-                    f_content = item.get("content")
-                    if f_path and f_content:
-                        os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
-                        with open(f_path, "w", encoding="utf-8") as f:
-                            f.write(f_content)
-                
-                branch = get_current_branch()
-                subprocess.run(["git", "add", "."])
-                subprocess.run(["git", "commit", "-m", f"Update: {user_input[:30]}"])
-                subprocess.run(["git", "push", "origin", branch])
-                print(f"🚀 Pushed to '{branch}'.")
-                
-                # Activate the autonomous watchdog
-                auto_heal_loop()
-                
+            if raw_response:
+                try:
+                    # Clean up Markdown block formatting if Gemini wraps the JSON
+                    clean_json = raw_response.strip()
+                    if clean_json.startswith("```json"):
+                        clean_json = clean_json[7:-3]
+                    elif clean_json.startswith("```"):
+                        clean_json = clean_json[3:-3]
+                        
+                    data = json.loads(clean_json.strip())
+                    files_to_update = data.get("files", [])
+                    
+                    if files_to_update:
+                        for item in files_to_update:
+                            f_path = item.get("path")
+                            f_content = item.get("content")
+                            if f_path and f_content:
+                                os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
+                                with open(f_path, "w", encoding="utf-8") as f:
+                                    f.write(f_content)
+                                print(f"🩹 Patched: {f_path}")
+                        
+                        subprocess.run(["git", "add", "."])
+                        subprocess.run(["git", "commit", "-m", "Auto-heal: Fixing Vercel build crash"])
+                        subprocess.run(["git", "push", "origin", branch])
+                        print(f"🚀 Pushed patch to '{branch}'.")
+                        
+                        last_failed_commit = current_commit 
+                        print("⏳ Giving Vercel 20 seconds to register the new push...")
+                        time.sleep(20)
+                    else:
+                        print("Agent analyzed but didn't modify any files.")
+                        last_failed_commit = current_commit
+                except Exception as e:
+                    print(f"JSON Parse error during auto-heal: {e}")
+                    last_failed_commit = current_commit
             else:
-                print("⚠️ No files modified.")
+                print("API call failed. Retrying later...")
+                time.sleep(15)
                 
-        except Exception as e:
-            print("Error processing response.")
+        elif state == "Ready":
+            print("✅ Vercel deployment is stable and live. Sleeping for 30s...")
+            time.sleep(30)
+            
+        else:
+            print("❓ Vercel state unknown or no deployments found. Retrying in 30s...")
+            time.sleep(30)
 
 if __name__ == "__main__":
     main()
