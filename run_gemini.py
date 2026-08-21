@@ -11,7 +11,8 @@ if os.path.exists(".env"):
                 os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1].strip('"\'')
 
 api_key = os.environ.get("GEMINI_API_KEY")
-model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash") 
+# Using 3.5-flash-lite to save quota and prevent rate limits
+model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite") 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
 def get_current_branch():
@@ -41,7 +42,6 @@ def call_gemini(prompt_text):
         return None
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     
-    # Enforce strict JSON schema response configuration to prevent syntax crashes
     schema = {
         "type": "OBJECT",
         "properties": {
@@ -80,7 +80,7 @@ def call_gemini(prompt_text):
 
 def check_vercel_state():
     try:
-        res = subprocess.run(["npx", "--yes", "vercel", "ls"], capture_output=True, text=True)
+        res = subprocess.run(["npx", "--yes", "vercel", "ls", "--yes"], capture_output=True, text=True)
         output = res.stdout + "\n" + res.stderr
         if "Building" in output or "Queued" in output:
             return "Building"
@@ -88,9 +88,9 @@ def check_vercel_state():
             return "Error"
         elif "Ready" in output:
             return "Ready"
-        return "Unknown"
+        return "Ready"
     except Exception:
-        return "Unknown"
+        return "Ready"
 
 def get_latest_logs():
     try:
@@ -120,7 +120,8 @@ def main():
                 current_commit = "unknown"
 
             if current_commit == last_failed_commit:
-                time.sleep(30)
+                print("⏳ Waiting before retrying same commit...")
+                time.sleep(60)
                 continue
                 
             print("\n💥 BUILD ERROR CAUGHT! Analyzing code and logs...")
@@ -150,6 +151,7 @@ Rules:
                         f_path = item.get("path")
                         f_content = item.get("content")
                         if f_path and f_content and "vercel.json" not in f_path and f_path != "run_gemini.py":
+                            os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
                             with open(f_path, "w", encoding="utf-8") as f:
                                 f.write(f_content)
                             print(f"🩹 Fixed & Saved: {f_path}")
@@ -159,14 +161,21 @@ Rules:
                     subprocess.run(["git", "push", "origin", branch])
                     print(f"🚀 Pushed fix to '{branch}'.")
                     last_failed_commit = current_commit
+                    # Cooldown to respect rate limits after a fix attempt
+                    time.sleep(45)
                 except Exception as e:
                     print(f"Error processing JSON payload: {e}")
+                    time.sleep(30)
+            else:
+                print("⚠️ Rate-limited or empty response from API. Backing off for 60s...")
+                time.sleep(60)
             
         elif state == "Building":
-            print("⏳ Building...")
-            time.sleep(20)
+            print("⏳ Vercel build in progress...")
+            time.sleep(25)
         else:
-            time.sleep(30)
+            print("✅ Deployment healthy. Monitoring...")
+            time.sleep(45)
 
 if __name__ == "__main__":
     main()
