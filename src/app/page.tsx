@@ -175,17 +175,18 @@ export default function StorePage() {
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 flex flex-col">
+      {/* Live Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-5 py-3 rounded-full text-sm font-medium shadow-2xl animate-fade-in">
+        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-6 py-3.5 rounded-full text-sm font-medium shadow-2xl animate-fade-in border border-neutral-800">
           {toastMessage}
         </div>
       )}
 
-      <div className="bg-neutral-900 text-white text-xs py-2 px-4 text-center tracking-wide">
+      <div className="bg-neutral-900 text-white text-xs py-2 px-4 text-center tracking-wide font-medium">
         Complimentary express shipping on all orders over $100 • Use code <span className="font-bold underline">VERVE10</span> for 10% off
       </div>
 
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-neutral-200 transition-all">
+      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-neutral-200 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setSelectedCategory("All"); setSearchQuery(""); }}>
             <span className="text-2xl font-black tracking-tighter uppercase">Verve<span className="text-neutral-500">Tech</span></span>
@@ -210,7 +211,7 @@ export default function StorePage() {
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="bg-neutral-100 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all w-48 lg:w-64"
+                className="bg-neutral-100 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all w-48 lg:w-64 text-neutral-900"
               />
               <svg className="w-4 h-4 text-neutral-500 absolute right-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -238,7 +239,7 @@ export default function StorePage() {
       <section className="relative bg-neutral-50 border-b border-neutral-200 py-20 lg:py-28 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest bg-neutral-200 text-neutral-800 px-3 py-1.5 rounded-full mb-6">
+            <span className="inline-block text-xs font-bold uppercase tracking-widest bg-neutral-200 text-neutral-800 px-3.5 py-1.5 rounded-full mb-6">
               New Release 2025
             </span>
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-neutral-900 leading-[1.08] mb-6">
@@ -256,7 +257,7 @@ export default function StorePage() {
               </a>
               <button
                 onClick={() => setSelectedProduct(PRODUCTS[0])}
-                className="border border-neutral-300 hover:border-neutral-900 text-neutral-900 text-center px-8 py-4 rounded-full font-semibold text-sm transition-all bg-white"
+                className="border border-neutral-300 hover:border-neutral-900 text-neutral-900 text-center px-8 py-4 rounded-full font-semibold text-sm transition-all bg-white shadow-sm"
               >
                 View Featured Spotlight
               </button>
@@ -353,11 +354,11 @@ export default function StorePage() {
       </main>
 
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col md:flex-row">
             <button
               onClick={() => setSelectedProduct(null)}
-              className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur-sm hover:bg-neutral-100 text-neutral-900 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md"
+              className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm hover:bg-neutral-100 text-neutral-900 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md font-bold"
             >
               ✕
             </button>
@@ -393,7 +394,7 @@ export default function StorePage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Key Specifications</h4>
                   <div className="grid grid-cols-2 gap-2">
                     {selectedProduct.specs.map((spec, i) => (
-                      <div key={i} className="bg-neutral-50 border border-neutral-200 text-neutral-800 text-xs font-medium px-3 py-2 rounded-xl">
+                      <div key={i} className="bg-neutral-50 border border-neutral-200 text-neutral-800 text-xs font-medium px-3 py-2.5 rounded-xl">
                         • {spec}
                       </div>
                     ))}
@@ -416,7 +417,7 @@ export default function StorePage() {
       )}
 
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex justify-end animate-fade-in">
           <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl relative">
             <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
               <h2 className="text-xl font-extrabold text-neutral-900">
@@ -426,7 +427,7 @@ export default function StorePage() {
               </h2>
               <button
                 onClick={() => setIsCartOpen(false)}
-                className="w-9 h-9 bg-neutral-100 hover:bg-neutral-200 rounded-full flex items-center justify-center text-neutral-800 transition-all"
+                className="w-9 h-9 bg-neutral-100 hover:bg-neutral-200 rounded-full flex items-center justify-center text-neutral-800 transition-all font-bold"
               >
                 ✕
               </button>
@@ -485,7 +486,7 @@ export default function StorePage() {
                           placeholder="Promo Code (VERVE10)"
                           value={promoCode}
                           onChange={e => setPromoCode(e.target.value)}
-                          className="flex-grow bg-neutral-100 border border-neutral-200 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                          className="flex-grow bg-neutral-100 border border-neutral-200 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                         />
                         <button
                           type="submit"
@@ -509,7 +510,7 @@ export default function StorePage() {
                       placeholder="Alex Morgan"
                       value={shippingInfo.name}
                       onChange={e => setShippingInfo({ ...shippingInfo, name: e.target.value })}
-                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                     />
                   </div>
                   <div>
@@ -520,7 +521,7 @@ export default function StorePage() {
                       placeholder="alex@vervetech.com"
                       value={shippingInfo.email}
                       onChange={e => setShippingInfo({ ...shippingInfo, email: e.target.value })}
-                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                     />
                   </div>
                   <div>
@@ -531,7 +532,7 @@ export default function StorePage() {
                       placeholder="123 Tech Lane, Suite 400"
                       value={shippingInfo.address}
                       onChange={e => setShippingInfo({ ...shippingInfo, address: e.target.value })}
-                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -543,7 +544,7 @@ export default function StorePage() {
                         placeholder="San Francisco"
                         value={shippingInfo.city}
                         onChange={e => setShippingInfo({ ...shippingInfo, city: e.target.value })}
-                        className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                       />
                     </div>
                     <div>
@@ -554,7 +555,7 @@ export default function StorePage() {
                         placeholder="United States"
                         value={shippingInfo.country}
                         onChange={e => setShippingInfo({ ...shippingInfo, country: e.target.value })}
-                        className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        className="w-full bg-neutral-50 border border-neutral-300 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900 text-neutral-900"
                       />
                     </div>
                   </div>
