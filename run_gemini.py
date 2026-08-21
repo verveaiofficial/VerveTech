@@ -27,6 +27,9 @@ def get_project_files():
         if any(p in root for p in [".git", "__pycache__", "node_modules", ".next", ".vercel", "build", "dist"]):
             continue
         for file in files:
+            # Skip config files to protect build parameters
+            if file in ["vercel.json", "package.json", "next.config.js", "tailwind.config.js", "postcss.config.js"]:
+                continue
             if file.endswith((".py", ".json", ".md", ".txt", ".js", ".ts", ".tsx", ".jsx", ".html", ".css")):
                 filepath = os.path.join(root, file)
                 try:
@@ -55,10 +58,8 @@ def call_gemini(prompt_text):
 
 def check_vercel_state():
     try:
-        # 'vercel ls' returns the deployment history. The top entry is the latest status.
         res = subprocess.run(["npx", "--yes", "vercel", "ls"], capture_output=True, text=True)
         output = res.stdout + "\n" + res.stderr
-        
         if "Building" in output or "Queued" in output:
             return "Building"
         elif "Error" in output or "Failed" in output:
@@ -71,7 +72,7 @@ def check_vercel_state():
 
 def get_latest_logs():
     try:
-        res = subprocess.run(["npx", "--yes", "vercel", "logs", "--limit", "200"], capture_output=True, text=True)
+        res = subprocess.run(["npx", "--yes", "vercel", "logs", "--limit", "250"], capture_output=True, text=True)
         return res.stdout + "\n" + res.stderr
     except Exception:
         return ""
@@ -82,9 +83,9 @@ def main():
         return
         
     branch = get_current_branch()
-    print(f"\n👁️ Verve AI Autonomous Watchdog Activated.")
+    print(f"\n👁️ Autonomous Code Watchdog Active.")
     print(f"Branch: {branch} | Model: {model_name}")
-    print("Zero-input mode engaged. Monitoring Vercel 24/7 in the background...\n")
+    print("Config protection enabled (ignoring vercel.json/package.json modifications).\n")
     
     last_failed_commit = None
 
@@ -102,36 +103,36 @@ def main():
             
         elif state == "Error":
             if current_commit == last_failed_commit:
-                print("⚠️ Last auto-patch failed on this exact commit. Waiting 60s for manual intervention to prevent a loop...")
-                time.sleep(60)
+                print("⚠️ Same commit failed again. Waiting 45s to avoid tight loops...")
+                time.sleep(45)
                 continue
                 
-            print("\n💥 CRASH DETECTED! Pulling live logs and initiating auto-heal...")
+            print("\n💥 BUILD ERROR CAUGHT! Extracting real error logs...")
             logs = get_latest_logs()
             
             system_instruction = f"""
-You are an autonomous CI/CD agent for Verve AI Studio. The live Vercel deployment just FAILED.
-Analyze the logs and project files below, then write the exact code to fix the build syntax/type errors.
+You are an autonomous engineering agent. The live Vercel build failed due to code, syntax, or type errors.
+Analyze the error logs and source files below to fix the bug. 
+DO NOT touch configuration files like vercel.json or package.json. Fix the actual code components or pages.
 
-CRITICAL: Return ONLY valid JSON matching this schema:
+Return ONLY valid JSON matching this schema:
 {{
-  "reasoning": "Identify the exact error and plan the fix.",
+  "reasoning": "Identify exact error line and fix.",
   "files": [
     {{
-      "path": "relative/path/to/file.ext",
+      "path": "relative/path/to/file.tsx",
       "content": "complete fixed code"
     }}
   ]
 }}
 """
-            prompt = f"{system_instruction}\n\nCodebase:\n{get_project_files()}\n\nVERCEL LOGS:\n{logs}"
+            prompt = f"{system_instruction}\n\nSource Code:\n{get_project_files()}\n\nVERCEL ERROR LOGS:\n{logs}"
             
-            print("🧠 Analyzing crash data and writing code patch...")
+            print("🧠 Rewriting code to fix bug...")
             raw_response = call_gemini(prompt)
             
             if raw_response:
                 try:
-                    # Clean up Markdown block formatting if Gemini wraps the JSON
                     clean_json = raw_response.strip()
                     if clean_json.startswith("```json"):
                         clean_json = clean_json[7:-3]
@@ -145,37 +146,35 @@ CRITICAL: Return ONLY valid JSON matching this schema:
                         for item in files_to_update:
                             f_path = item.get("path")
                             f_content = item.get("content")
-                            if f_path and f_content:
+                            # Strict safety check against config files
+                            if f_path and f_content and not any(c in f_path for c in ["vercel.json", "package.json"]):
                                 os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
                                 with open(f_path, "w", encoding="utf-8") as f:
                                     f.write(f_content)
-                                print(f"🩹 Patched: {f_path}")
+                                print(f"🩹 Patched Source File: {f_path}")
                         
                         subprocess.run(["git", "add", "."])
-                        subprocess.run(["git", "commit", "-m", "Auto-heal: Fixing Vercel build crash"])
+                        subprocess.run(["git", "commit", "-m", "Auto-heal: Fix source code compilation error"])
                         subprocess.run(["git", "push", "origin", branch])
-                        print(f"🚀 Pushed patch to '{branch}'.")
+                        print(f"🚀 Pushed fix to '{branch}'.")
                         
                         last_failed_commit = current_commit 
-                        print("⏳ Giving Vercel 20 seconds to register the new push...")
-                        time.sleep(20)
+                        time.sleep(25)
                     else:
-                        print("Agent analyzed but didn't modify any files.")
+                        print("Agent found no source files to change.")
                         last_failed_commit = current_commit
                 except Exception as e:
-                    print(f"JSON Parse error during auto-heal: {e}")
+                    print(f"Parse error: {e}")
                     last_failed_commit = current_commit
             else:
-                print("API call failed. Retrying later...")
                 time.sleep(15)
                 
         elif state == "Ready":
-            print("✅ Vercel deployment is stable and live. Sleeping for 30s...")
+            print("✅ Vercel deployment is Green & Live. Watching...")
             time.sleep(30)
             
         else:
-            print("❓ Vercel state unknown or no deployments found. Retrying in 30s...")
-            time.sleep(30)
+            time.sleep(20)
 
 if __name__ == "__main__":
     main()
