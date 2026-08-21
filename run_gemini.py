@@ -27,6 +27,9 @@ def get_project_files():
         if any(p in root for p in [".git", "__pycache__", "node_modules", ".next", ".vercel", "build", "dist"]):
             continue
         for file in files:
+            # Protect the agent script itself from being overwritten
+            if file == "run_gemini.py":
+                continue
             if file.endswith((".py", ".json", ".md", ".txt", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".config.js", ".config.ts")):
                 filepath = os.path.join(root, file)
                 try:
@@ -57,17 +60,15 @@ def check_vercel_state():
     try:
         res = subprocess.run(["npx", "--yes", "vercel", "ls"], capture_output=True, text=True)
         output = res.stdout + "\n" + res.stderr
-        if "isn't linked" in output or "not linked" in output:
-            return "Ready"
         if "Building" in output or "Queued" in output:
             return "Building"
         elif "Error" in output or "Failed" in output:
             return "Error"
         elif "Ready" in output:
             return "Ready"
-        return "Ready"
+        return "Unknown"
     except Exception:
-        return "Ready"
+        return "Unknown"
 
 def get_latest_logs():
     try:
@@ -84,7 +85,7 @@ def main():
     branch = get_current_branch()
     print(f"\n👁️ Full-Repo Autonomous Watchdog Active.")
     print(f"Branch: {branch} | Model: {model_name}")
-    print("Full repository access granted. Monitoring builds 24/7...\n")
+    print("Self-protection enabled. Monitoring builds 24/7...\n")
     
     last_failed_commit = None
 
@@ -106,19 +107,20 @@ def main():
                 time.sleep(45)
                 continue
                 
-            print("\n💥 BUILD ERROR CAUGHT! Scanning full repository and logs...")
+            print("\n💥 BUILD ERROR CAUGHT! Analyzing full repository and logs...")
             logs = get_latest_logs()
             
-            system_instruction = """
-You are an autonomous engineering agent with full control over the repository. The live Vercel build failed.
-Examine the Vercel error logs and the entire repository context below. Modify ANY file necessary (package.json, config files, components, styles, etc.) to completely resolve the build failure.
+            system_instruction = f"""
+You are an autonomous engineering agent. The live Vercel build failed.
+Examine the Vercel error logs and the repository files below (especially package.json if dependencies are missing like 'autoprefixer'). Fix the actual codebase or configuration files to completely resolve the build failure.
+DO NOT modify run_gemini.py.
 
 Return ONLY valid JSON matching this schema:
 {{
-  "reasoning": "Explain the exact root cause and how you are fixing it across the repository.",
+  "reasoning": "Explain the exact root cause and how you are fixing it.",
   "files": [
     {{
-      "path": "relative/path/to/any/file.ext",
+      "path": "relative/path/to/file.ext",
       "content": "complete fixed code"
     }}
   ]
@@ -126,7 +128,7 @@ Return ONLY valid JSON matching this schema:
 """
             prompt = f"{system_instruction}\n\nFull Repository Context:\n{get_project_files()}\n\nVERCEL ERROR LOGS:\n{logs}"
             
-            print("🧠 Analyzing full codebase and patching...")
+            print("🧠 Analyzing codebase and patching configuration/code...")
             raw_response = call_gemini(prompt)
             
             if raw_response:
@@ -144,16 +146,16 @@ Return ONLY valid JSON matching this schema:
                         for item in files_to_update:
                             f_path = item.get("path")
                             f_content = item.get("content")
-                            if f_path and f_content:
+                            if f_path and f_content and f_path != "run_gemini.py":
                                 os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
                                 with open(f_path, "w", encoding="utf-8") as f:
                                     f.write(f_content)
-                                print(f"🩹 Patched Repo File: {f_path}")
+                                print(f"🩹 Patched File: {f_path}")
                         
                         subprocess.run(["git", "add", "."])
-                        subprocess.run(["git", "commit", "-m", "Auto-heal: Full repo fix for build error"])
+                        subprocess.run(["git", "commit", "-m", "Auto-heal: Fix build error from logs"])
                         subprocess.run(["git", "push", "origin", branch])
-                        print(f"🚀 Pushed full-repo fix to '{branch}'.")
+                        print(f"🚀 Pushed fix to '{branch}'.")
                         
                         last_failed_commit = current_commit 
                         time.sleep(25)
