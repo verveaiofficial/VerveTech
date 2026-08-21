@@ -11,7 +11,6 @@ if os.path.exists(".env"):
                 os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1].strip('"\'')
 
 api_key = os.environ.get("GEMINI_API_KEY")
-# Locked strictly to 3.x model series as requested
 model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash") 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
@@ -41,10 +40,35 @@ def call_gemini(prompt_text):
     if not api_key:
         return None
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    
+    # Enforce strict JSON schema response configuration to prevent syntax crashes
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "reasoning": {"type": "STRING"},
+            "files": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "path": {"type": "STRING"},
+                        "content": {"type": "STRING"}
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        "required": ["reasoning", "files"]
+    }
+
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {"response_mime_type": "application/json"}
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "response_schema": schema
+        }
     }
+    
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
     try:
         with urllib.request.urlopen(req) as response:
@@ -106,7 +130,7 @@ def main():
             files_context = "\n".join([f"--- FILE: {path} ---\n{content}\n" for path, content in files_dict.items()])
 
             prompt = f"""
-You are an expert coder. The build failed with this log:
+The Vercel build failed with this log:
 {logs}
 
 Repository Files:
@@ -116,30 +140,19 @@ Task: Find the issue in the code or package.json. Fix it by rewriting the file c
 Rules:
 1. ONLY modify package.json or source code files.
 2. DO NOT modify vercel.json or run_gemini.py.
-3. Return only valid JSON.
-
-{{
-  "reasoning": "What caused the error and how you fixed it",
-  "files": [
-    {{
-      "path": "path/to/file",
-      "content": "Full code content"
-    }}
-  ]
-}}
 """
             raw_response = call_gemini(prompt)
             
             if raw_response:
                 try:
-                    data = json.loads(raw_response.strip().replace("```json", "").replace("```", ""))
+                    data = json.loads(raw_response)
                     for item in data.get("files", []):
                         f_path = item.get("path")
                         f_content = item.get("content")
                         if f_path and f_content and "vercel.json" not in f_path and f_path != "run_gemini.py":
                             with open(f_path, "w", encoding="utf-8") as f:
                                 f.write(f_content)
-                            print(f"🩹 Fixed: {f_path}")
+                            print(f"🩹 Fixed & Saved: {f_path}")
                     
                     subprocess.run(["git", "add", "."])
                     subprocess.run(["git", "commit", "-m", "Auto-fixed build error"])
@@ -147,7 +160,7 @@ Rules:
                     print(f"🚀 Pushed fix to '{branch}'.")
                     last_failed_commit = current_commit
                 except Exception as e:
-                    print(f"Error processing AI response: {e}")
+                    print(f"Error processing JSON payload: {e}")
             
         elif state == "Building":
             print("⏳ Building...")
