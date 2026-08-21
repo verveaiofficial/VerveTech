@@ -174,24 +174,24 @@ export default function StorePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 flex flex-col">
+    <div className="min-h-screen bg-white text-neutral-900 flex flex-col font-sans">
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-6 py-3.5 rounded-full text-sm font-medium shadow-2xl animate-fade-in border border-neutral-800">
+        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-6 py-3.5 rounded-2xl text-sm font-medium shadow-2xl animate-fade-in border border-neutral-800">
           {toastMessage}
         </div>
       )}
 
-      <div className="bg-neutral-900 text-white text-xs py-2 px-4 text-center tracking-wide font-medium">
+      <div className="bg-neutral-900 text-white text-xs py-2.5 px-4 text-center tracking-wide font-medium">
         Complimentary express shipping on all orders over $100 • Use code <span className="font-bold underline">VERVE10</span> for 10% off
       </div>
 
-      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-neutral-200 transition-all">
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-neutral-200 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setSelectedCategory("All"); setSearchQuery(""); }}>
             <span className="text-2xl font-black tracking-tighter uppercase">Verve<span className="text-neutral-500">Tech</span></span>
           </div>
 
-          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-neutral-600">
+          <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-neutral-600">
             {categories.slice(0, 5).map(cat => (
               <button
                 key={cat}
@@ -201,7 +201,7 @@ export default function StorePage() {
                 {cat}
               </button>
             ))}
-          </div>
+          </nav>
 
           <div className="flex items-center space-x-4">
             <div className="relative hidden sm:block">
@@ -210,7 +210,7 @@ export default function StorePage() {
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="bg-neutral-100 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all w-48 lg:w-64 text-neutral-900"
+                className="bg-neutral-100 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 transition-all w-48 lg:w-64 text-neutral-900 border border-transparent focus:border-neutral-900"
               />
               <svg className="w-4 h-4 text-neutral-500 absolute right-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -219,14 +219,14 @@ export default function StorePage() {
 
             <button
               onClick={() => { setIsCartOpen(true); setCheckoutStep('cart'); }}
-              className="relative bg-neutral-900 hover:bg-neutral-800 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shadow-sm"
+              className="relative bg-neutral-900 hover:bg-neutral-800 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center space-x-2 shadow-sm hover:shadow"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
               <span>Cart</span>
               {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-white text-neutral-900 border border-neutral-900 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-white text-neutral-900 border border-neutral-900 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
                   {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               )}
@@ -305,7 +305,7 @@ export default function StorePage() {
               <div
                 key={product.id}
                 onClick={() => setSelectedProduct(product)}
-                className="group bg-white rounded-2xl border border-neutral-200 overflow-hidden hover:border-neutral-900 transition-all duration-300 flex flex-col cursor-pointer shadow-sm hover:shadow-xl"
+                className="group bg-white rounded-3xl border border-neutral-200 overflow-hidden hover:border-neutral-900 transition-all duration-300 flex flex-col cursor-pointer shadow-sm hover:shadow-xl"
               >
                 <div className="relative aspect-square bg-neutral-100 overflow-hidden">
                   <img
@@ -372,7 +372,7 @@ export default function StorePage() {
 
             <div className="md:w-1/2 p-8 flex flex-col justify-between overflow-y-auto max-h-[80vh] md:max-h-none">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider bg-neutral-100 text-neutral-800 px-3 py-1 rounded-full">
+                <span className="text-xs font-bold uppercase tracking-wider bg-neutral-100 text-neutral-800 px-3.5 py-1.5 rounded-full">
                   {selectedProduct.category}
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 mt-3 mb-2">

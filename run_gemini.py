@@ -2,7 +2,9 @@ import os
 import json
 import urllib.request
 import subprocess
-import time
+import base64
+import mimetypes
+import re
 
 if os.path.exists(".env"):
     with open(".env", "r", encoding="utf-8") as f:
@@ -52,16 +54,44 @@ def get_project_files():
                     pass
     return context
 
-def call_gemini(contents):
+def extract_image_parts(user_input):
+    image_parts = []
+    potential_paths = re.findall(r'[\w\/\.\-]+\.(?:png|jpg|jpeg|webp)', user_input, re.IGNORECASE)
+    if "screenshot" in user_input.lower():
+        for f in os.listdir("."):
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and f not in potential_paths:
+                potential_paths.append(f)
+
+    for path in set(potential_paths):
+        clean_path = path.strip()
+        if os.path.exists(clean_path):
+            mime_type, _ = mimetypes.guess_type(clean_path)
+            if not mime_type:
+                mime_type = "image/jpeg"
+            try:
+                with open(clean_path, "rb") as img_file:
+                    encoded_string = base64.b64encode(img_file.read()).decode('utf-8')
+                    image_parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": encoded_string
+                        }
+                    })
+                print(f"📸 Attached screenshot: {clean_path}")
+            except Exception as e:
+                print(f"Could not load image {clean_path}: {e}")
+    return image_parts
+
+def call_gemini(parts):
     if not api_key:
-        print("Error: GEMINI_API_KEY is missing from .env or environment!")
+        print("Error: GEMINI_API_KEY is missing from .env!")
         return None
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key
     }
     payload = {
-        "contents": contents,
+        "contents": [{"parts": parts}],
         "generationConfig": {"response_mime_type": "application/json"}
     }
     
@@ -74,25 +104,13 @@ def call_gemini(contents):
         print("API Error:", e)
         return None
 
-def check_build():
-    if not os.path.exists("tsconfig.json"):
-        return True, "No tsconfig found, skipping build check."
-    try:
-        res = subprocess.run(["npx", "--yes", "tsc", "--noEmit"], capture_output=True, text=True, timeout=25)
-        if res.returncode == 0:
-            return True, "Passed syntax check."
-        else:
-            return False, (res.stdout + "\n" + res.stderr)[-3000:]
-    except Exception as e:
-        return True, f"Check bypassed: {e}"
-
 def main():
     if not api_key:
-        print("\nError: Please add GEMINI_API_KEY to your .env file!")
+        print("\nError: Missing GEMINI_API_KEY in .env!")
         return
 
     current_branch = get_current_branch()
-    print(f"\nVibe Coding Agent + Reasoning Enabled ({model_name}) 🧠✨")
+    print(f"\nVibe Coding Agent Ready! ({model_name}) 🧠📸✨")
     print(f"Active Branch: {current_branch}\n")
 
     while True:
@@ -108,86 +126,78 @@ def main():
         files_context = get_project_files()
 
         system_instruction = f"""
-You are an intelligent full-stack AI vibe-coding agent.
-Analyze the user's message, project files, and agents.md rules carefully.
+You are an intelligent full-stack AI vibe-coding agent with Vision analysis capabilities.
+Analyze the user's message, attached screenshot images (if provided), project files, and agents.md rules carefully.
 
-CRITICAL INSTRUCTION: You MUST perform step-by-step reasoning BEFORE generating replies or file edits.
+CRITICAL RULES:
+1. You MUST perform step-by-step reasoning BEFORE generating replies or file edits.
+2. Whenever code/styling changes are requested, return full updated file contents inside 'files'.
+3. Always write valid React/Next.js code that builds cleanly on Vercel.
 
-You MUST return a valid JSON object strictly matching this schema:
+You MUST return a valid JSON object matching this schema:
 {{
-  "reasoning": "Step-by-step thought process: Analyze architecture, evaluate dependencies, identify files to edit, anticipate syntax/type errors, and double-check instructions...",
-  "reply": "Your friendly, direct response or update to Aariz...",
+  "reasoning": "Step-by-step thought process...",
+  "reply": "Your direct message to Aariz...",
   "files": [
     {{
       "path": "relative/path/to/file.ext",
-      "content": "complete updated content of the file"
+      "content": "complete updated file content"
     }}
   ]
 }}
-
-Rules:
-- Fill out the 'reasoning' field FIRST with thorough analysis.
-- If no files need to be edited or created, set 'files': [].
-- Unrestricted access to edit any file in the repo.
-- Write full, production-ready code without placeholders.
 {agents_rules}
 {branch_context}
 """
 
-        current_prompt = f"{system_instruction}\n\nExisting Codebase:\n{files_context}\n\nUser Input: {user_input}"
-        attempt = 1
+        prompt_text = f"{system_instruction}\n\nExisting Codebase:\n{files_context}\n\nUser Input: {user_input}"
+        parts = [{"text": prompt_text}]
+        parts.extend(extract_image_parts(user_input))
 
-        while True:
-            print("\nThinking and analyzing codebase... 🧠")
-            raw_response = call_gemini([{"parts": [{"text": current_prompt}]}])
-            if not raw_response:
-                print("Failed to reach Gemini API.")
-                break
+        print("\nThinking and analyzing code... 🧠")
+        raw_response = call_gemini(parts)
+        if not raw_response:
+            print("Failed to reach Gemini API.")
+            continue
 
-            try:
-                data = json.loads(raw_response.strip())
-            except Exception as e:
-                print("Response parse error, retrying...")
-                break
+        try:
+            data = json.loads(raw_response.strip())
+        except Exception as e:
+            print("Response parse error, retrying...")
+            continue
 
-            thought_process = data.get("reasoning", "")
-            agent_reply = data.get("reply", "")
-            files_to_update = data.get("files", [])
+        thought_process = data.get("reasoning", "")
+        agent_reply = data.get("reply", "")
+        files_to_update = data.get("files", [])
 
-            if thought_process:
-                print(f"\n💭 Reasoning:\n{thought_process}\n")
+        if thought_process:
+            print(f"\n💭 Reasoning:\n{thought_process}\n")
 
-            if agent_reply:
-                print(f"Agent: {agent_reply}\n")
+        if agent_reply:
+            print(f"Agent: {agent_reply}\n")
 
-            if files_to_update:
-                for item in files_to_update:
-                    f_path = item.get("path")
-                    f_content = item.get("content")
-                    if f_path and f_content is not None:
-                        dir_name = os.path.dirname(f_path)
-                        if dir_name:
-                            os.makedirs(dir_name, exist_ok=True)
-                        with open(f_path, "w", encoding="utf-8") as f:
-                            f.write(f_content)
-                        print(f"Updated: {f_path}")
+        if files_to_update:
+            for item in files_to_update:
+                f_path = item.get("path")
+                f_content = item.get("content")
+                if f_path and f_content is not None:
+                    dir_name = os.path.dirname(f_path)
+                    if dir_name:
+                        os.makedirs(dir_name, exist_ok=True)
+                    with open(f_path, "w", encoding="utf-8") as f:
+                        f.write(f_content)
+                    print(f"Updated local file: {f_path}")
 
-                build_ok, build_log = check_build()
-                if not build_ok:
-                    print(f"\nType/Syntax Error detected! Fixing automatically (Attempt {attempt})...")
-                    current_prompt = f"{system_instruction}\n\nExisting Codebase:\n{get_project_files()}\n\nERROR LOG:\n{build_log}\n\nFix all issues and provide updated files."
-                    attempt += 1
-                    time.sleep(2)
-                    continue
-
-                latest_branch = get_current_branch()
-                if latest_branch not in ["main", "master"]:
-                    subprocess.run(["git", "add", "."])
-                    subprocess.run(["git", "commit", "-m", f"Vibe agent update: {user_input[:40]}"])
-                    subprocess.run(["git", "push", "origin", latest_branch])
-                    print(f"Pushed updates to {latest_branch}! 🚀\n")
-
-            break
+            latest_branch = get_current_branch()
+            subprocess.run(["git", "add", "."])
+            subprocess.run(["git", "commit", "-m", f"Vibe update: {user_input[:40]}"])
+            push_res = subprocess.run(["git", "push", "origin", latest_branch], capture_output=True, text=True)
+            
+            if push_res.returncode == 0:
+                print(f"🚀 Pushed live to GitHub branch '{latest_branch}'!\n")
+            else:
+                print(f"Git Push Output: {push_res.stdout} {push_res.stderr}\n")
+        else:
+            print("⚠️ No files modified in this turn.\n")
 
 if __name__ == "__main__":
     main()
