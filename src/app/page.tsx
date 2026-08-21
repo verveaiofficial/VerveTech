@@ -175,7 +175,6 @@ export default function StorePage() {
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 flex flex-col">
-      {/* Live Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-6 py-3.5 rounded-full text-sm font-medium shadow-2xl animate-fade-in border border-neutral-800">
           {toastMessage}
