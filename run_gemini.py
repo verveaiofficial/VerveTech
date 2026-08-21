@@ -2,6 +2,7 @@ import os
 import json
 import urllib.request
 import subprocess
+import sys
 import time
 
 if os.path.exists(".env"):
@@ -11,7 +12,6 @@ if os.path.exists(".env"):
                 os.environ["GEMINI_API_KEY"] = line.strip().split("=", 1)[1].strip('"\'')
 
 api_key = os.environ.get("GEMINI_API_KEY")
-# Using 3.5-flash-lite to save quota and prevent rate limits
 model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite") 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
@@ -88,9 +88,9 @@ def check_vercel_state():
             return "Error"
         elif "Ready" in output:
             return "Ready"
-        return "Ready"
+        return "Unknown"
     except Exception:
-        return "Ready"
+        return "Unknown"
 
 def get_latest_logs():
     try:
@@ -105,26 +105,23 @@ def main():
         return
         
     branch = get_current_branch()
-    print(f"\n👁️ Code Watchdog Active.")
-    print(f"Branch: {branch} | Model: {model_name}\n")
+    print(f"\n🎯 On-Demand Code Fixer Active (Branch: {branch} | Model: {model_name})")
+    print("Running a single auto-fix cycle until the build is successful...\n")
     
-    last_failed_commit = None
+    attempts = 0
+    max_attempts = 5
 
-    while True:
+    while attempts < max_attempts:
+        attempts += 1
         state = check_vercel_state()
+        print(f"[{attempts}/{max_attempts}] Current Vercel Build State: {state}")
         
-        if state == "Error":
-            try:
-                current_commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-            except:
-                current_commit = "unknown"
-
-            if current_commit == last_failed_commit:
-                print("⏳ Waiting before retrying same commit...")
-                time.sleep(60)
-                continue
-                
-            print("\n💥 BUILD ERROR CAUGHT! Analyzing code and logs...")
+        if state == "Ready":
+            print("✅ Build is completely successful and green! Stopping loop.")
+            sys.exit(0)
+            
+        elif state == "Error" or state == "Unknown":
+            print("💥 Build error detected. Analyzing logs and patching files...")
             logs = get_latest_logs()
             files_dict = get_specific_files()
             
@@ -147,6 +144,7 @@ Rules:
             if raw_response:
                 try:
                     data = json.loads(raw_response)
+                    updated = False
                     for item in data.get("files", []):
                         f_path = item.get("path")
                         f_content = item.get("content")
@@ -154,28 +152,23 @@ Rules:
                             os.makedirs(os.path.dirname(f_path) or ".", exist_ok=True)
                             with open(f_path, "w", encoding="utf-8") as f:
                                 f.write(f_content)
-                            print(f"🩹 Fixed & Saved: {f_path}")
+                            print(f"🩹 Patched: {f_path}")
+                            updated = True
                     
-                    subprocess.run(["git", "add", "."])
-                    subprocess.run(["git", "commit", "-m", "Auto-fixed build error"])
-                    subprocess.run(["git", "push", "origin", branch])
-                    print(f"🚀 Pushed fix to '{branch}'.")
-                    last_failed_commit = current_commit
-                    # Cooldown to respect rate limits after a fix attempt
-                    time.sleep(45)
+                    if updated:
+                        subprocess.run(["git", "add", "."])
+                        subprocess.run(["git", "commit", "-m", f"Auto-heal fix attempt {attempts}"])
+                        subprocess.run(["git", "push", "origin", branch])
+                        print(f"🚀 Pushed fix to '{branch}'. Waiting for Vercel to pick it up...")
+                        time.sleep(30)
                 except Exception as e:
-                    print(f"Error processing JSON payload: {e}")
-                    time.sleep(30)
-            else:
-                print("⚠️ Rate-limited or empty response from API. Backing off for 60s...")
-                time.sleep(60)
+                    print(f"Error parsing AI response: {e}")
             
         elif state == "Building":
-            print("⏳ Vercel build in progress...")
-            time.sleep(25)
-        else:
-            print("✅ Deployment healthy. Monitoring...")
-            time.sleep(45)
+            print("⏳ Build in progress... waiting 20 seconds.")
+            time.sleep(20)
+            
+    print("Reached max auto-fix attempts. Exiting so you can chat or inspect.")
 
 if __name__ == "__main__":
     main()
